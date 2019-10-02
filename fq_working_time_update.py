@@ -1,5 +1,5 @@
 #import machine, I2C
-from machine import Pin, I2C, RTC
+from machine import Pin, I2C, RTC, ADC
 #import ssd1306_old as ssd1306
 import ssd1306
 from time import sleep
@@ -12,6 +12,10 @@ incPressed = False
 button_A = Pin(2, Pin.IN)
 button_B = Pin(13, Pin.IN)
 #button_C = Pin(2, Pin.IN)
+
+
+#light sensor
+lightSensor = ADC(0)
 
 last_mode = 8
 
@@ -61,6 +65,7 @@ def main():
     oled_height = 32
     oled = ssd1306.SSD1306_I2C(oled_width, oled_height, i2c)
     oled.fill(0)
+    
 
     #set rtc
     rtc = RTC()
@@ -183,6 +188,9 @@ def main():
                 oled.show()
         
         else:
+            #set contrast
+            oled.contrast(lightSensor.read())
+            
             #get current time
             cur_time = rtc.datetime()
             year = str(cur_time[0])
@@ -206,3 +214,5 @@ def main():
 
 if __name__ == "__main__" :
     main()
+
+
