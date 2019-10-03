@@ -8,12 +8,16 @@ from time import sleep
 mode = 0  # 0 == "regular mode", 1 = "set year", 2 = "set month", etc.
 alarm_mode = 0  # 0 == "not in alarm mode", 1 = "in alarm mode, hour", 2 = "in alarm mode, minute"
 incPressed = False
+alarmRinging = False
+alarmHour = 1000
+alarmMinute = 10000
 
 # buttons
 button_A = Pin(2, Pin.IN)
 button_B = Pin(13, Pin.IN)
 button_C = Pin(15, Pin.IN) #manual button because button C broken
-
+LED = Pin(16, Pin.OUT)
+LED.off()
 
 # light sensor
 lightSensor = ADC(0)
@@ -21,6 +25,16 @@ lightSensor = ADC(0)
 last_mode = 8
 last_alarm_mode = 4
 
+#alarm reached
+def alarmReached(curTime):
+    global alarmHour
+    global alarmMinute
+    if curTime[4] >= alarmHour and curTime[5] >= alarmMinute:
+        global alarmRinging
+        alarmRinging = True
+        print("alarmRinging: " + str(alarmRinging))
+        alarmHour = 10000
+        alarmMinute = 1000
 
 def mode_pressed_callback(pin):
     global mode
@@ -32,7 +46,6 @@ def mode_pressed_callback(pin):
     # increment: will use mod to get the mode
     mode += 1
 
-
 def inc_pressed_callback(pin):
     global interrupt_pin
     global incPressed
@@ -42,13 +55,19 @@ def inc_pressed_callback(pin):
     incPressed = True
 
 def alarm_pressed_callback(pin):
-    global interrupt_pin
-    global alarm_mode
-    interrupt_pin = pin
-    sleep(0.05)
-    print("pressed button c")
-    # increment: will use mod to get the mode
-    alarm_mode += 1
+    global alarmRinging
+    if alarmRinging:
+        alarmRinging = False
+        print("alarm ringing:" + str(alarmRinging))
+    else:
+        global interrupt_pin
+        global alarm_mode
+        interrupt_pin = pin
+        sleep(0.05)
+        print("pressed button c")
+        LED.on()
+        # increment: will use mod to get the mode
+        alarm_mode += 1
 
 # attach interrupt to button a
 button_A.irq(trigger=Pin.IRQ_RISING, handler=mode_pressed_callback)  # when there is a change
@@ -80,7 +99,7 @@ def main():
 
     # set rtc
     rtc = RTC()
-    initial_time = (2014, 5, 1, 4, 12, 0, 0, 0)
+    initial_time = (2014, 5, 1, 4, 12, 0, 30, 0)
     rtc.datetime(initial_time)  # initial_time) #year, month, day
 
     # vars to track updated time
@@ -88,19 +107,20 @@ def main():
     yearMax = 2020
     yearMin = 1990
     monthNew = 0
-    #for the alarm
-    alarmHour = -1
-    alarmMinute = -1
 
     # main loop
     while True:
-        #check if the alarm has to go off
-        #if(str(rtc.datetime([4])) == alarmHour) and (str(rtc.datetime([5])) == alarmMinute):
-            #alarm goes off
-         #   oled.fill(0)
-         #   oled.text("*ALARM*", 0, 0)
-         #   oled.text('PRESS C TO STOP', 0, 10)
-         #   oled.show()
+        global alarmMinute
+        global alarmHour
+        # alarm loop
+        while alarmRinging:
+            print("alarm should be ringing rn")
+            oled.fill(-1)
+            oled.fill(0)
+            oled.text('!!!ALARM!!!', 0, 0)
+            oled.text('Press C to', 0, 10)
+            oled.text(' turn alarm off', 0, 20)
+            oled.show()
         if(alarm_mode % last_alarm_mode) !=0: #in alarm mode
             oled.text(str(alarm_mode), 70, 25)
             print("in alarm mode: " + str(alarm_mode % last_alarm_mode))
@@ -138,13 +158,8 @@ def main():
                 oled.text('Alarm Minute: ' + str(alarmMinute), 0, 0)
                 oled.show()
 
-                    # after setting the final time thing put                 haveAlarmTime = False
-                # else is being used as the update
             else:
-               # haveTimeAlarm = False
-
                 # update the alarm time
-
                 oled.fill(0)
                 oled.text('press C to', 0, 0)
                 oled.text('update alarm', 0, 10)
@@ -262,7 +277,9 @@ def main():
 
         else:
             if (mode % last_mode == 0) and (alarm_mode % last_alarm_mode == 0):
-                print("in regular mode")
+
+                alarmReached(rtc.datetime())
+
                 # set contrast
                 oled.contrast(lightSensor.read())
                 # get current time
@@ -283,9 +300,12 @@ def main():
                 oled.text(first_line, 0, 0)
                 oled.text(second_line, 0, 10)
 
-                oled.text("mode:" + str(mode), 75, 25)
-                oled.text("amode:" + str(alarm_mode), 0, 25)
+                #oled.text("mode:" + str(mode), 75, 25)
+                #oled.text("amode:" + str(alarm_mode), 0, 25)
                 oled.show()
+
+                print("time: " + str(cur_time[4]) + ":" + str(cur_time[5]))
+                print("atime: " + str(alarmHour) + ":" + str(alarmMinute))
             else:
                 print ("ERROR, THIS CODE SHOULD NEVER EXECUTE")
 
